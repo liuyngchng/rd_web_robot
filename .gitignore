@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 构建产物
+build/
+dist/
+*.spec
+
+# 录制产物
+recordings/*.py
+recordings/index.json
+
+# IDE
+.idea/
+.vscode/
+*.swp

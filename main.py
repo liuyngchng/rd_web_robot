@@ -313,17 +313,17 @@ class RPARecorderApp:
         script_path = RECORDINGS_DIR / script_name
 
         self.recorder = Recorder(url, script_path)
+        # 同步启动（exec 很快，避免与周期性检查产生竞态）
+        self.recorder.start()
 
-        # 后台启动录制
-        def run():
-            self.recorder.start()
-            # 等待 codegen 退出
+        # 后台等待 codegen 退出
+        def wait():
             if self.recorder.process:
                 self.recorder.process.wait()
                 self.recorder.process = None
             self.root.after(0, self._on_recording_finished, script_path)
 
-        threading.Thread(target=run, daemon=True).start()
+        threading.Thread(target=wait, daemon=True).start()
 
         self.set_status("recording", f"正在录制 → {url}")
         self.record_btn.config(text="  停止录制 (Stop)  ", bg=COLORS["status_idle"], fg="black")
@@ -361,6 +361,8 @@ class RPARecorderApp:
             self.set_status("idle", "录制已取消（未生成记录）")
         self.recorder = None
         self.root.after(0, self.refresh_list)
+
+    def on_replay(self):
         if self.player and self.player.running:
             self._stop_replay()
             return
@@ -405,9 +407,11 @@ class RPARecorderApp:
         self.play_btn.config(text="  执行 (Replay)  ", bg=COLORS["play"], fg="black")
 
     def _on_replay_finished(self):
+        if self.player is None:
+            return  # 防止双重触发
+        self.player = None
         self.play_btn.config(text="  执行 (Replay)  ", bg=COLORS["play"], fg="black")
         self.set_status("idle", "回放完成")
-        self.player = None
 
     def on_delete(self):
         selection = self.tree.selection()
@@ -449,13 +453,18 @@ class RPARecorderApp:
         self.status_label.config(fg=color_map.get(state, COLORS["status_idle"]))
 
     def check_subprocess_periodic(self):
-        """周期性检查子进程状态（兜底）"""
-        if self.recorder and not self.recorder.running:
-            self._on_recording_finished(
-                self.recorder.output_path if self.recorder else None
-            )
-        if self.player and not self.player.running:
+        """周期性检查子进程状态（兜底：用户直接关浏览器窗口而不是自己点停止）"""
+        if self.recorder and self.recorder.running:
+            pass  # 仍在录制中
+        elif self.recorder and not self.recorder.running:
+            # 用户通过关闭浏览器退出 codegen，而不是点停止按钮
+            self._on_recording_finished(self.recorder.output_path)
+
+        if self.player and self.player.running:
+            pass  # 仍在回放中
+        elif self.player and not self.player.running:
             self._on_replay_finished()
+
         self._monitor_after_id = self.root.after(2000, self.check_subprocess_periodic)
 
     def on_close(self):
