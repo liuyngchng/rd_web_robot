@@ -52,13 +52,20 @@ def build():
     ensure_deps()
     print("[build] 开始打包 ...")
 
+    # 自动生成图标（如果缺失）
+    icon_path = BASE_DIR / "icon.ico"
+    if not icon_path.exists():
+        print("[build] 未找到 icon.ico，自动生成 ...")
+        try:
+            from generate_icon import main as gen_icon
+            gen_icon()
+        except Exception:
+            pass  # Pillow 可能没装，不带图标也能打包
+
     driver_dir = find_playwright_driver_dir()
     if not driver_dir.exists():
         print(f"[build] {FAIL} 未找到 Playwright driver 目录，请先 pip install playwright")
         sys.exit(1)
-
-    # Playwright 官方 hook 已通过 collect_data_files 自动打包 driver 目录，
-    # 无需手动 --add-data
 
     cmd = [
         sys.executable, "-m", "PyInstaller",
@@ -73,8 +80,13 @@ def build():
         "--exclude-module", "pytest",
         "--exclude-module", "numpy",
         "--exclude-module", "PIL",
-        "main.py",
     ]
+
+    # 图标存在才加（避免 PyInstaller 报错）
+    if icon_path.exists():
+        cmd += ["--icon", str(icon_path)]
+
+    cmd += ["main.py"]
 
     result = subprocess.run(cmd, cwd=BASE_DIR)
     if result.returncode != 0:
