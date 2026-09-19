@@ -14,7 +14,13 @@ dist/
 recordings/*.py
 recordings/index.json
 
+# 日志
+logs/
+
 # IDE
 .idea/
 .vscode/
 *.swp
+
+# Claude Code
+.claude/
